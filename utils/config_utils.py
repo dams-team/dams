@@ -23,7 +23,7 @@ def ensure_data_dirs() -> None:
     - Metadata path: holds acoustic and teacher manifests and CSVs
     """
     s = get_settings()
-    for p in [s.raw_audio_blocs_path, s.segments_path, s.metadata_path]:
+    for p in [s.raw_audio_path, s.segments_path, s.metadata_path]:
         Path(p).mkdir(parents=True, exist_ok=True)
 
 
