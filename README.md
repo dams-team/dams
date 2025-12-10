@@ -169,8 +169,7 @@ dams/
 ├── logs/
 │   └── dams.log                        # General log file
 │
-├── models/                             # Reserved for fine-tuned model 
-definitions
+├── models/                             # Reserved for fine-tuned model definitions
 │   ├── __init__.py   
 │   ├── TBD: SMAD fine-tuned model definitions (dataset, eval, mode, training loop) 
 │   ├── encoders/                       # Encoder architectures 
@@ -182,7 +181,7 @@ definitions
 │   ├── 02_ast_teacher_sanity.ipynb     # Supervised and zero-shot AST teacher confidence threshold calibration
 │   ├── 03_teacher_comparison.ipynb     # Compare teacher performances
 │   ├── 04_student_error_analysis.ipynb # Reserved for student errors vs teacher
-│   └── 05_paper_figures.ipynb          # Reserved fir final results figures for paper
+│   └── 05_paper_figures.ipynb          # Reserved for final results figures for paper
 │
 ├── utils/
 │   ├── __init__.py
