@@ -70,13 +70,6 @@ NOISE_SCORE = 'noise_score'
 NEEDS_REVIEW = 'needs_review'
 
 # ================================
-#  AVA SMAD Version & Artifacts
-# ================================
-
-# AVA_SMAD_SEGMENTS = 'ava_smad_segments'
-# CSV_AVA_SMAD_SEGMENTS = 'ava_smad_segments.csv'
-
-# ================================
 #  BLOCS SMAD Version & Artifacts
 # ================================
 
@@ -90,16 +83,24 @@ BLOCS_SMAD_V2_WHISPER = 'blocs_smad_v2_whisper'
 BLOCS_SMAD_V2_CLAP = 'blocs_smad_v2_clap'
 BLOCS_SMAD_V2_M2D = 'blocs_smad_v2_m2d'
 BLOCS_SMAD_V2_PANNS = 'blocs_smad_v2_panns'
-BLOCS_SMAD_V2_GOLD = 'blocs_smad_v2_gold'
-BLOCS_SMAD_V3 = 'blocs_smad_v3'
-BLOCS_SMAD_FINAL = 'blocs_smad_final'
+BLOCS_SMAD_V2_GOLD = 'blocs_smad_v2_gold'   # Gold labeled dataset.
+BLOCS_SMAD_V3 = 'blocs_smad_v3'             # Fused teacher labels or first student pass.
+BLOCS_SMAD_FINAL = 'blocs_smad_final'       # Final dataset for training student/benchmarks.
 
-# Flat CSV artifacts corresponding to the first segmentation stage.
+# Base CSV artifact filenames
 CSV_BLOCS_SMAD_SEGMENTS = 'blocs_smad_segments.csv'
-# Flat CSV artifacts corresponding to the final labeled manifests.
 CSV_BLOCS_SMAD_LABELS = 'blocs_smad_labels.csv'
-# Flat CSV artifact for overlap review segments.
 CSV_BLOCS_OVERLAP_MANIFEST = 'blocs_overlap_manifest.csv'
+CSV_BLOCS_SMAD_GOLD_ANNOTATIONS = 'blocs_smad_gold_annotations_v1.csv'
+
+# Gold annotation artifacts
+CSV_BLOCS_SMAD_GOLD_LABELS = 'blocs_smad_labels_gold_v1.csv'  # Trains student model.
+JSONL_BLOCS_SMAD_GOLD_ANNOTATIONS = 'blocs_smad_gold_annotations_v1.jsonl'
+BLOCS_SMAD_GOLD_HF = 'blocs_smad_v2_gold'
+
+# IRR artifacts
+BLOCS_SMAD_IRR_LOG = 'blocs_smad_irr_stats_v1.json'
+BLOCS_SMAD_IRR_TABLE = 'blocs_smad_irr_pairs_v1.csv'
 
 # ================================
 #  Row and batch schemas

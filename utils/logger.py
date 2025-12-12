@@ -81,4 +81,73 @@ def log_pseudo_label_stats(ds: Dataset, teacher_name: str = "teacher") -> None:
 
     logger.info(f"All three labels=1 ({teacher_name}): {smn}")
 
-__all__ = ["logger", "log_pseudo_label_stats"]
+
+
+
+def log_gold_label_stats(gold_df: pd.DataFrame, name: str = 'gold') -> None:
+    if gold_df.empty:
+        logger.warning('No rows in gold_df, skipping gold label stats.')
+        return
+
+    total = len(gold_df)
+    irr_count = int(gold_df['is_irr_segment'].sum())
+    non_irr_count = total - irr_count
+
+    logger.info(f'=== {name} label summary ===')
+    logger.info(f'Total segments: {total}')
+    logger.info(
+        f'IRR segments: {irr_count} ({irr_count / total:.1%}); '
+        f'non-IRR: {non_irr_count} ({non_irr_count / total:.1%})'
+    )
+
+    labels = ['speech', 'music', 'noise']
+    for lab in labels:
+        gold_col = f'{lab}_gold'
+        if gold_col not in gold_df.columns:
+            continue
+
+        n_pos = int(gold_df[gold_col].sum())
+        disagree_col = f'{lab}_disagree'
+        if disagree_col in gold_df.columns:
+            n_disagree = int(gold_df[disagree_col].sum())
+            irr_mask = gold_df['is_irr_segment']
+            n_irr_disagree = int(gold_df.loc[irr_mask, disagree_col].sum())
+            logger.info(
+                f'{lab.title()}=1: {n_pos} ({n_pos / total:.1%}), '
+                f'{n_disagree} segments with disagreement '
+                f'({n_irr_disagree} on IRR subset)'
+            )
+        else:
+            logger.info(f'{lab.title()}=1: {n_pos} ({n_pos / total:.1%})')
+
+    if {'speech_gold', 'music_gold', 'noise_gold'}.issubset(gold_df.columns):
+        s = gold_df['speech_gold']
+        m = gold_df['music_gold']
+        n = gold_df['noise_gold']
+
+        both_sm = int(((s == 1) & (m == 1)).sum())
+        sm_only = int(((s == 1) & (m == 0) & (n == 0)).sum())
+        m_only = int(((s == 0) & (m == 1) & (n == 0)).sum())
+        none_sm = int(((s == 0) & (m == 0)).sum())
+
+        sn = int(((s == 1) & (n == 1) & (m == 0)).sum())
+        mn = int(((m == 1) & (n == 1) & (s == 0)).sum())
+        smn = int(((s == 1) & (m == 1) & (n == 1)).sum())
+        noise_only = int(((n == 1) & (s == 0) & (m == 0)).sum())
+
+        logger.info(f'Speech–music combinations ({name} gold):')
+        logger.info(f'  Speech=1, Music=1: {both_sm}')
+        logger.info(f'  Speech=1 only: {sm_only}')
+        logger.info(f'  Music=1 only: {m_only}')
+        logger.info(f'  Both Speech=0 and Music=0: {none_sm}')
+
+        logger.info(f'Speech–noise combinations ({name} gold):')
+        logger.info(f'  Speech=1, Noise=1 (Music=0): {sn}')
+        logger.info(f'  Noise=1 only: {noise_only}')
+
+        logger.info(f'Music–noise combinations ({name} gold):')
+        logger.info(f'  Music=1, Noise=1 (Speech=0): {mn}')
+
+        logger.info(f'All three labels=1 ({name} gold): {smn}')
+
+__all__ = ['logger', 'log_pseudo_label_stats', 'log_gold_label_stats']
