@@ -51,7 +51,12 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, device: torch.device, p
 
 
 def train(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
     processor = get_feature_extractor(args.ast_model)
     full_ds = SmadDataset(
         manifest_path=args.manifest,
@@ -70,6 +75,15 @@ def train(args: argparse.Namespace) -> None:
     pos_weight = compute_pos_weight(full_ds).to(device)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     model = ASTClassifier(model_name=args.ast_model, num_labels=len(CLASSES)).to(device)
+
+    freeze_encoder = getattr(args, "freeze_encoder", True)
+    if freeze_encoder:
+        for name, param in model.named_parameters():
+            param.requires_grad = name.startswith("model.classifier.")
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        n_total = sum(p.numel() for p in model.parameters())
+        print(f"Frozen encoder; training head only ({n_trainable:,}/{n_total:,} parameters).")
+
     # AST has its own feature extractor padding; use smaller batch sizes to fit memory
     num_workers = getattr(args, "num_workers", 0)
     pin_memory = device.type == "cuda"
@@ -80,10 +94,14 @@ def train(args: argparse.Namespace) -> None:
         val_ds, batch_size=args.batch_size_ast, shuffle=False, num_workers=num_workers, pin_memory=pin_memory
     )
 
-    optim = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    optim = torch.optim.Adam(
+        (p for p in model.parameters() if p.requires_grad), lr=args.lr, weight_decay=args.weight_decay
+    )
 
     for epoch in range(1, args.epochs + 1):
         model.train()
+        if freeze_encoder and hasattr(model.model, "audio_spectrogram_transformer"):
+            model.model.audio_spectrogram_transformer.eval()
         running_loss = 0.0
         train_pbar = tqdm(train_loader, desc=f"Train {epoch}/{args.epochs}", leave=False)
         for batch in train_pbar:
@@ -131,6 +149,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("checkpoints/student_ast.pt"))
     parser.add_argument("--ast-model", type=str, default="MIT/ast-finetuned-audioset-10-10-0.4593")
     parser.add_argument("--num-workers", type=int, default=0, help="DataLoader workers; keep 0 on macOS/Jupyter.")
+    parser.add_argument(
+        "--freeze-encoder",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Freeze AST encoder and train only the classifier head.",
+    )
     return parser.parse_args()
 
 
