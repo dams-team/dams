@@ -71,8 +71,14 @@ def train(args: argparse.Namespace) -> None:
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     model = ASTClassifier(model_name=args.ast_model, num_labels=len(CLASSES)).to(device)
     # AST has its own feature extractor padding; use smaller batch sizes to fit memory
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size_ast, shuffle=True, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size_ast, shuffle=False, num_workers=2, pin_memory=True)
+    num_workers = getattr(args, "num_workers", 0)
+    pin_memory = device.type == "cuda"
+    train_loader = DataLoader(
+        train_ds, batch_size=args.batch_size_ast, shuffle=True, num_workers=num_workers, pin_memory=pin_memory
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=args.batch_size_ast, shuffle=False, num_workers=num_workers, pin_memory=pin_memory
+    )
 
     optim = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -124,6 +130,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-fraction", type=float, default=0.1)
     parser.add_argument("--output", type=Path, default=Path("checkpoints/student_ast.pt"))
     parser.add_argument("--ast-model", type=str, default="MIT/ast-finetuned-audioset-10-10-0.4593")
+    parser.add_argument("--num-workers", type=int, default=0, help="DataLoader workers; keep 0 on macOS/Jupyter.")
     return parser.parse_args()
 
 
