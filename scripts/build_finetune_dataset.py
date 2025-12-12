@@ -102,7 +102,7 @@ def build_dataset(metadata_dir: Path, out_disk: Path | None, out_parquet: Path |
             dup_count = df["segment_path"].duplicated().sum()
             raise ValueError(f"Teacher {name} still has {dup_count} duplicate segment_path values after de-duplication step.")
 
-    # Add columns representing the chosen teacher's label/score for each class.
+    # Add chosen labels/scores from the F1-best teacher for all classes (including noise).
     for label in ["speech", "music", "noise"]:
         winner = choices[label]
         merged[f"chosen_{label}_label"] = merged[f"{winner}_{label}_label"]
