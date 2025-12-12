@@ -64,7 +64,8 @@ class SmadDataset(Dataset):
             waveform = waveform.mean(dim=0, keepdim=True)
         # Ensure a consistent segment length (spec: fixed-length windows).
         # Some segments at file boundaries may be shorter; pad with zeros.
-        target_len = int(round(self.sample_rate * self.segment_seconds))
+        segment_seconds = float(getattr(self, "segment_seconds", 10.0))
+        target_len = int(round(self.sample_rate * segment_seconds))
         if target_len > 0:
             cur_len = int(waveform.shape[1])
             if cur_len < target_len:
