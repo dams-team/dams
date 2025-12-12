@@ -41,7 +41,6 @@ class SmadDataset(Dataset):
         self.mel = torchaudio.transforms.MelSpectrogram(
             sample_rate=sample_rate, n_mels=n_mels, hop_length=hop_length, win_length=win_length
         )
-        self.resampler = torchaudio.transforms.Resample(orig_freq=None, new_freq=sample_rate)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -50,8 +49,11 @@ class SmadDataset(Dataset):
         row = self.df.iloc[idx]
         wav_path = self.segments_dir / row["segment_path"]
         waveform, sr = torchaudio.load(wav_path)
+        if sr is None or not isinstance(sr, (int, float)) or sr <= 0:
+            raise ValueError(f"Invalid sample rate {sr} (type: {type(sr)}) for file {wav_path}")
         if sr != self.sample_rate:
-            waveform = self.resampler(waveform)
+            resampler = torchaudio.transforms.Resample(orig_freq=int(sr), new_freq=int(self.sample_rate))
+            waveform = resampler(waveform)
         # Convert to mono
         if waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)

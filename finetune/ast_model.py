@@ -15,7 +15,10 @@ class ASTClassifier(torch.nn.Module):
     def __init__(self, model_name: str = "MIT/ast-finetuned-audioset-10-10-0.4593", num_labels: int = 3):
         super().__init__()
         self.config = AutoConfig.from_pretrained(model_name, num_labels=num_labels)
-        self.model = AutoModelForAudioClassification.from_pretrained(model_name, config=self.config)
+        # Allow the classification head to be resized from the checkpoint (527) to our label count.
+        self.model = AutoModelForAudioClassification.from_pretrained(
+            model_name, config=self.config, ignore_mismatched_sizes=True
+        )
 
     def forward(self, input_values: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         out = self.model(input_values=input_values, attention_mask=attention_mask)

@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader, random_split
+from tqdm.auto import tqdm
 
 from finetune.dataset import SmadDataset, CLASSES
 from finetune.ast_model import ASTClassifier, get_feature_extractor
@@ -26,11 +27,12 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, device: torch.device, p
     model.eval()
     all_labels, all_probs = [], []
     with torch.no_grad():
-        for batch in loader:
+        for batch in tqdm(loader, desc="Val", leave=False):
             labels = batch["labels"].to(device)
-            # batch["waveform"]: (B, 1, T)
+            # Feature extractor expects a list of 1D waveforms, not a 2D batch tensor.
             wavs = batch["waveform"].squeeze(1)  # (B, T)
-            inputs = processor(wavs, sampling_rate=processor.sampling_rate, return_tensors="pt", padding=True)
+            wav_list = [w.cpu().numpy() for w in wavs]  # list of (T,)
+            inputs = processor(wav_list, sampling_rate=processor.sampling_rate, return_tensors="pt", padding=True)
             input_values = inputs["input_values"].to(device)
             attention_mask = inputs.get("attention_mask")
             if attention_mask is not None:
@@ -77,15 +79,24 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(1, args.epochs + 1):
         model.train()
         running_loss = 0.0
-        for batch in train_loader:
-            mel = batch["mel"].to(device)
+        train_pbar = tqdm(train_loader, desc=f"Train {epoch}/{args.epochs}", leave=False)
+        for batch in train_pbar:
             labels = batch["labels"].to(device)
-            logits = model(mel)
+            # Feature extractor expects a list of 1D waveforms, not a 2D batch tensor.
+            wavs = batch["waveform"].squeeze(1)  # (B, T)
+            wav_list = [w.cpu().numpy() for w in wavs]  # list of (T,)
+            inputs = processor(wav_list, sampling_rate=processor.sampling_rate, return_tensors="pt", padding=True)
+            input_values = inputs["input_values"].to(device)
+            attention_mask = inputs.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
+            logits = model(input_values=input_values, attention_mask=attention_mask)
             loss = criterion(logits, labels)
             optim.zero_grad()
             loss.backward()
             optim.step()
-            running_loss += loss.item() * mel.size(0)
+            running_loss += loss.item() * input_values.size(0)
+            train_pbar.set_postfix(loss=f"{loss.item():.4f}")
         epoch_loss = running_loss / len(train_loader.dataset)
         val_metrics, macro_f1 = evaluate(model, val_loader, device, processor=processor)
         print(f"Epoch {epoch}: loss={epoch_loss:.4f} val_macro_f1={macro_f1:.4f} val_metrics={val_metrics}")
