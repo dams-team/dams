@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     b2_region: str = 'us-east-005'
     b2_endpoint: str = 'https://s3.us-east-005.backblazeb2.com'
 
+    ls_url: str | None = None
+    ls_api_key: str | None = None
+
     # File paths (can be overridden via .env temporarily, if needed)
     data_root: Path = PROJECT_ROOT / 'data'
     models_path: Path = PROJECT_ROOT / 'models'
@@ -88,18 +91,6 @@ class Settings(BaseSettings):
     segments_path: Path = data_root / 'segments'
     gold_labels_path: Path = data_root / 'gold_labels'
     experiments_path: Path = metadata_path / 'experiments'
-
-    # BLOCS paths.
-    # raw_audio_blocs_path: Path = raw_audio_path / 'blocs'
-    # segments_blocs_path: Path = segments_path / 'blocs'
-    # metadata_blocs_path: Path = metadata_path / 'blocs'
-    # gold_labels_blocs_path: Path = gold_labels_path / 'blocs'
-
-    # AVA paths.
-    # raw_audio_ava_path: Path = raw_audio_path / 'ava'
-    # segments_ava_path: Path = segments_path / 'ava'
-    # metadata_ava_path: Path = metadata_path / 'ava'
-    # gold_labels_ava_path: Path = gold_labels_path / 'ava'
 
     model_config = SettingsConfigDict(
         env_file='.env',
