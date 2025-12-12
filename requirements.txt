@@ -182,7 +182,7 @@ tornado==6.5.2
 tqdm==4.67.1
 traitlets==5.14.3
 transformers==4.57.3
-triton==2.0.0 ; platform_system == "Linux"
+# triton==2.0.0 ; platform_system == "Linux"
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2025.2
@@ -193,10 +193,11 @@ wcwidth==0.2.14
 webcolors==25.10.0
 webencodings==0.5.1
 websocket-client==1.9.0
-whisper-at==0.5
+# whisper-at--no-deps
 widgetsnbextension==4.0.15
 wrapt==2.0.1
 xmljson==0.2.1
 xxhash==3.6.0
 yarl==1.22.0
 yt-dlp==2025.11.12
+boto3
