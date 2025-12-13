@@ -21,7 +21,6 @@ class GoldEvalDataset(Dataset):
         self.df = gold_df.reset_index(drop=True)
         self.segments_dir = Path(segments_dir)
         self.sample_rate = sample_rate
-        self.resampler = torchaudio.transforms.Resample(orig_freq=None, new_freq=sample_rate)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -31,7 +30,7 @@ class GoldEvalDataset(Dataset):
         wav_path = self.segments_dir / row["segment_path"]
         waveform, sr = torchaudio.load(wav_path)
         if sr != self.sample_rate:
-            waveform = self.resampler(waveform)
+            waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
         if waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
         labels = torch.tensor([row[f"{c}_gold"] for c in CLASSES], dtype=torch.float32)
@@ -45,7 +44,12 @@ def collate_fn(batch: List[dict]) -> Tuple[torch.Tensor, torch.Tensor]:
 
 
 def evaluate(args: argparse.Namespace) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
     processor = get_feature_extractor(args.ast_model)
 
     manifest = pd.read_csv(args.manifest)
@@ -61,7 +65,7 @@ def evaluate(args: argparse.Namespace) -> None:
         raise ValueError("No overlapping segment_path between gold and manifest for the selected filter.")
 
     ds = GoldEvalDataset(gold, args.segments_dir, sample_rate=args.sample_rate)
-    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=2, collate_fn=collate_fn)
+    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=0, collate_fn=collate_fn)
 
     # Load model checkpoint
     ckpt = torch.load(args.checkpoint, map_location=device)
