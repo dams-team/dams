@@ -218,9 +218,9 @@ data/segments/
 
 # Metadata (keep only core manifests and small samples; ignore experiments and run outputs)
 data/metadata/
-!data/metadata/blocs_smad_segments.csv
-!data/metadata/blocs_gold_intervals.csv
-!data/metadata/blocs_overlap_manifest.csv
+!data/metadata/blocs_smad/v1/blocs_smad_segments.csv
+!archive/audacity_gold_attempt/blocs_gold_intervals.csv
+!archive/blocs_overlap_manifest.csv
 !data/metadata/blocs_overlap_ls_tasks.json
 !data/metadata/blocs_smad_segments/
 !data/metadata/samples/

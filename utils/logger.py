@@ -150,4 +150,36 @@ def log_gold_label_stats(gold_df: pd.DataFrame, name: str = 'gold') -> None:
 
         logger.info(f'All three labels=1 ({name} gold): {smn}')
 
-__all__ = ['logger', 'log_pseudo_label_stats', 'log_gold_label_stats']
+
+def log_gold_overlap_stats(gold_df: pd.DataFrame, name: str = 'gold') -> None:
+    """
+    Log overlap counts for gold labels, including music noise overlaps split by whether speech is present.
+    Expects columns: speech_gold, music_gold, noise_gold (0 or 1).
+    """
+    required = {'speech_gold', 'music_gold', 'noise_gold'}
+    if not required.issubset(gold_df.columns):
+        missing = sorted(list(required - set(gold_df.columns)))
+        logger.warning(f'Missing columns for overlap stats: {missing}')
+        return
+
+    s = gold_df['speech_gold'].astype(int)
+    m = gold_df['music_gold'].astype(int)
+    n = gold_df['noise_gold'].astype(int)
+    total = len(gold_df)
+
+    mn_s0 = int(((m == 1) & (n == 1) & (s == 0)).sum())
+    mn_s1 = int(((m == 1) & (n == 1) & (s == 1)).sum())
+    mn_all = int(((m == 1) & (n == 1)).sum())
+    smn = int(((s == 1) & (m == 1) & (n == 1)).sum())
+
+    logger.info(f'Music noise overlap breakdown ({name} gold):')
+    logger.info(f'  Music=1 and Noise=1 total: {mn_all} ({mn_all / total:.1%})')
+    logger.info(f'  Music=1, Noise=1, Speech=0: {mn_s0} ({mn_s0 / total:.1%})')
+    logger.info(f'  Music=1, Noise=1, Speech=1: {mn_s1} ({mn_s1 / total:.1%})')
+    logger.info(f'  All three labels=1: {smn} ({smn / total:.1%})')
+
+
+
+
+__all__ = ['logger', 'log_pseudo_label_stats', 'log_gold_label_stats',
+           'log_gold_overlap_stats']

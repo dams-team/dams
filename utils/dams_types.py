@@ -16,6 +16,10 @@ This module is the single source of truth for:
 
 from typing import TypedDict, Literal
 
+
+CLASSES = ['speech', 'music', 'noise']
+
+
 SegmentManifest = list['SegmentRow']
 
 # ================================
@@ -70,7 +74,7 @@ NOISE_SCORE = 'noise_score'
 NEEDS_REVIEW = 'needs_review'
 
 # ================================
-#  BLOCS SMAD Version & Artifacts
+#  BLOCS SMAD Version & Artifacts (deprecating old names for genericity)
 # ================================
 
 # Versioned dataset folders (HuggingFace `save_to_disk()` outputs).
@@ -85,7 +89,7 @@ BLOCS_SMAD_V2_M2D = 'blocs_smad_v2_m2d'
 BLOCS_SMAD_V2_PANNS = 'blocs_smad_v2_panns'
 BLOCS_SMAD_V2_GOLD = 'blocs_smad_v2_gold'   # Gold labeled dataset.
 BLOCS_SMAD_V3 = 'blocs_smad_v3'             # Fused teacher labels or first student pass.
-BLOCS_SMAD_FINAL = 'blocs_smad_final'       # Final dataset for training student/benchmarks.
+BLOCS_SMAD_FINAL = 'blocs_smad_manifest_with_splits.csv'
 
 # Base CSV artifact filenames
 CSV_BLOCS_SMAD_SEGMENTS = 'blocs_smad_segments.csv'
@@ -102,13 +106,28 @@ BLOCS_SMAD_GOLD_HF = 'blocs_smad_v2_gold'
 BLOCS_SMAD_IRR_LOG = 'blocs_smad_irr_stats_v1.json'
 BLOCS_SMAD_IRR_TABLE = 'blocs_smad_irr_pairs_v1.csv'
 
+
 # ================================
 #  Row and batch schemas
 # ================================
 
-class SegmentRow(TypedDict):
+
+class SegmentBaseRow(TypedDict):
+    """ A minimal, immutable base row for a single audio segment.
+
+    This is the canonical schema for the segment inventory (e.g., v1/segments.csv).
+    Downstream artifacts (QC, teacher scores, labels, splits) should be keyed by
+    segment_path and joined on this base table.
     """
-    One row in the BLOCS segment manifest.
+    segment_path: str       # segment filename, e.g. 001_NO_RAD_0001_s0001.wav.
+    raw_file: str           # original long form filename, e.g. 001_NO_RAD_0001.wav.
+
+    start_time: float       # seconds from start of source file.
+    end_time: float         # seconds from start of source file.
+
+
+class SegmentManifestRow(TypedDict):
+    """One row in the BLOCS segment manifest.
 
     This matches what ends up in blocs_smad_* metadata,
     regardless of whether labels are gold or pseudo.
@@ -116,13 +135,13 @@ class SegmentRow(TypedDict):
     raw_file: str        # original long form filename, e.g. 001_NO_RAD_0001.wav
     segment_path: str    # segment filename, e.g. 001_NO_RAD_0001_s0001.wav
 
-    start_time: float    # seconds from start of raw file
-    end_time: float      # seconds from start of raw file
+    start_time: float    # seconds from start of source file.
+    end_time: float      # seconds from start of source file.
 
     split: SplitName     # dev, test, unlabeled, unsplit
     label_source: LabelSource
 
-    # Multi label targets.
+    # Multi label targets (speech/music/noise) as 0/1 integers.
     speech_label: int
     music_label: int
     noise_label: int
