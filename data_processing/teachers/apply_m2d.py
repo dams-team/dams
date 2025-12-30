@@ -1,7 +1,6 @@
 # data_processing/apply_m2d.py
 
-"""
-Apply M2D-CLAP zero-shot teacher model to generate pseudo-labels for audio segments.
+"""Apply M2D-CLAP zero-shot teacher model to generate pseudo-labels for audio segments.
 
 Reads audio segments from disk, encodes them with a pretrained M2D-CLAP
 model, scores them against speech / music / noise text prompts, and saves
@@ -22,6 +21,8 @@ from datasets import Dataset
 
 from config import get_settings, SAMPLE_RATE, M2D_CLAP_CHECKPOINT
 
+from utils.artifacts import V1, V2, SEGMENTS_CSV, TEACHERS_DIR
+
 from utils.dams_types import (
     BatchDict,
     SEGMENT_PATH,
@@ -33,8 +34,6 @@ from utils.dams_types import (
     SPEECH_SCORE,
     MUSIC_SCORE,
     NOISE_SCORE,
-    BLOCS_SMAD_V1,
-    BLOCS_SMAD_V2_M2D,
 )
 
 from utils.logger import logger, log_pseudo_label_stats
@@ -182,12 +181,14 @@ def _apply_m2d_clap_to_batch(batch: BatchDict, segments_dir: Path) -> BatchDict:
 def main() -> None:
 
     with time_block("M2D-CLAP zero-shot pseudo-labeling process"):
-        metadata_dir: Path = settings.metadata_path
-        segments_dir: Path = settings.segments_path
+        v1_dir = settings.manifest_dir(V1)
+        v2_dir = settings.manifest_dir(V2)
+        segments_dir = settings.segments_path
 
-        base_manifest_path = metadata_dir / BLOCS_SMAD_V1
-        logger.info(f"Loading base dataset from {base_manifest_path}...")
-        ds: Dataset = Dataset.load_from_disk(base_manifest_path)
+        # Load segments inventory from v1
+        segments_csv = v1_dir / SEGMENTS_CSV
+        logger.info(f"Loading segments from {segments_csv}...")
+        ds = Dataset.from_csv(str(segments_csv))
 
         # ds = ds.select(range(500))  # For debugging with a smaller subset.
 
@@ -201,12 +202,13 @@ def main() -> None:
             desc="M2D-CLAP zero-shot labeling",
         )
 
-        out_name = BLOCS_SMAD_V2_M2D
-        out_path = metadata_dir / out_name
+        # Save to v2/teachers/m2d.csv and v2/teachers/m2d/
+        teachers_path = v2_dir / TEACHERS_DIR
+        teachers_path.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Saving M2D-CLAP labeled dataset to {out_path}...")
-        ds_m2d.save_to_disk(out_path)
-        ds_m2d.to_csv(str(metadata_dir / f"{out_name}.csv"), index=False)
+        ds_m2d.to_csv(teachers_path / 'm2d.csv', index=False)
+        ds_m2d.save_to_disk(teachers_path / 'm2d')
+        logger.info(f"✓ Saved M2D-CLAP outputs to {teachers_path / 'm2d'}[.csv]")
 
         # Log summary statistics of pseudo-labels.
         log_pseudo_label_stats(ds_m2d, teacher_name="M2D-CLAP zero-shot teacher")

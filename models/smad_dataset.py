@@ -2,7 +2,7 @@
 
 """PyTorch dataset + dataloader helpers for BLOCS SMAD.
 
-This module wraps a BLOCS SMAD manifest (CSV/Parquet or HF save_to_disk() folder)
+This module wraps a BLOCS SMAD manifest (CSV or HF save_to_disk() folder)
 into a PyTorch Dataset that yields:
 - waveform: mono audio shaped [1, T]
 - labels: float32 multi-hot vector ordered as [speech, music, noise]
@@ -36,7 +36,8 @@ from torch.utils.data import DataLoader, Dataset
 
 from config import AST_MODEL_NAME, SAMPLE_RATE, SEGMENT_LEN, get_settings
 from utils.audio_io import load_mono_resampled
-from utils.dams_types import BLOCS_SMAD_FINAL, MUSIC, NOISE, SEGMENT_PATH, SPEECH, SplitName
+from utils.artifacts import V4, MANIFEST
+from utils.dams_types import SPEECH, MUSIC, NOISE, SEGMENT_PATH, SplitName
 
 
 TrainMode = Literal['all', 'gold_only', 'pseudo_only']
@@ -51,7 +52,7 @@ class SmadDatasetConfig:
     - a name resolved under 'Settings.metadata_path'.
     """
 
-    manifest_name: str = BLOCS_SMAD_FINAL
+    manifest_name: str = MANIFEST
     split: str = 'train'
     sample_rate: int = SAMPLE_RATE
     max_duration_sec: float = SEGMENT_LEN
@@ -89,7 +90,8 @@ class SmadDataset(Dataset):
         if manifest_candidate.exists():
             self.manifest_path = manifest_candidate
         else:
-            self.manifest_path = self.settings.metadata_path / config.manifest_name
+            # Default to v4 manifest.
+            self.manifest_path = self.settings.manifest_dir(V4) / config.manifest_name
 
         dataset = self._load_manifest(self.manifest_path)
 
@@ -284,7 +286,7 @@ def build_ast_collate_fn(
 
 
 def make_smad_dataloaders(
-    manifest_name: str = BLOCS_SMAD_FINAL,
+    manifest_name: str = MANIFEST,
     batch_size: int = 8,
     num_workers: int = 4,
     collate_fn: Optional[Callable[[List[Dict[str, Any]]], Dict[str, Any]]] = None,

@@ -2,18 +2,20 @@
 
 """Central configuration module for the DAMS audio processing project.
 
-This module defines global constants, model identifiers, and filesystem paths
-used across data processing, teacher inference, and training components. It
-also provides the `Settings` class, which loads environment-dependent values
-(such as Backblaze B2 credentials and data directories) from a `.env` file or
-system environment variables. The `get_settings()` function exposes a cached
-singleton instance of these settings for use throughout the codebase.
+Defines global constants, model identifiers, and filesystem paths used across
+data processing, teacher inference, and training components.
+
+Settings loads environment-dependent values from a .env file or environment
+variables. Derived paths are computed so overrides remain consistent.
 """
+
+from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 CHECKPOINTS_PATH = PROJECT_ROOT / 'checkpoints' # Directories for non-HF checkpoints.
@@ -23,8 +25,8 @@ CHECKPOINTS_PATH = PROJECT_ROOT / 'checkpoints' # Directories for non-HF checkpo
 # ================================
 
 SAMPLE_RATE = 16_000
-SEGMENT_LEN = 10.0      # in seconds.
-HOP_LEN = 5.0           # defines overlap in seconds.
+SEGMENT_LEN = 10.0          # in seconds.
+HOP_LEN = 5.0               # seconds (overlap = SEGMENT_LEN - HOP_LEN)
 AUDIO_ENCODING = 'PCM_S'
 BITS_PER_SAMPLE = 16
 
@@ -32,7 +34,6 @@ BITS_PER_SAMPLE = 16
 # Global Experiment Constants
 # ================================
 
-# Experiment Labels / Classes
 CLASSES = ['speech', 'music', 'noise']
 
 # ================================
@@ -62,14 +63,8 @@ M2D_CLAP_CHECKPOINT = (
 
 
 class Settings(BaseSettings):
-    """Application-wide configuration loaded from environment variables.
+    """Application-wide configuration loaded from environment variables."""
 
-    This settings class centralizes all paths, Backblaze B2 credentials,
-    and project-level parameters used throughout the audio processing
-    pipeline. Values are loaded from a `.env` file when present, or from
-    system environment variables, allowing reproducible and overrideable
-    configuration for local development and team workflows.
-    """
     # Backblaze B2
     b2_key_id: str
     b2_application_key: str
@@ -77,20 +72,84 @@ class Settings(BaseSettings):
     b2_region: str = 'us-east-005'
     b2_endpoint: str = 'https://s3.us-east-005.backblazeb2.com'
 
+    # Label Studio (optional)
     ls_url: str | None = None
     ls_api_key: str | None = None
 
-    # File paths (can be overridden via .env temporarily, if needed)
-    data_root: Path = PROJECT_ROOT / 'data'
-    models_path: Path = PROJECT_ROOT / 'models'
-    logs_path: Path = PROJECT_ROOT / 'logs'
+    # Roots (overrideable)
+    data_root: Path = Field(default=PROJECT_ROOT / 'data')
+    models_path: Path = Field(default=PROJECT_ROOT / 'models')
+    logs_path: Path = Field(default=PROJECT_ROOT / 'logs')
+    reports_path: Path = Field(default=PROJECT_ROOT / 'reports')
 
-    # General dataset paths.
-    raw_audio_path: Path = data_root / 'raw'
-    metadata_path: Path = data_root / 'metadata'
-    segments_path: Path = data_root / 'segments'
-    gold_labels_path: Path = data_root / 'gold_labels'
-    experiments_path: Path = metadata_path / 'experiments'
+    # Versioning knobs (overrideable)
+    dataset_id: str = Field(default='blocs_smad')
+    manifest_version: str = Field(default='v1')  # schema/content version
+    run_id: str = Field(default='dev')  # experiment/run id (e.g., 2025-12-01_a)
+
+    # ===============================
+    # Derived paths
+    # ===============================
+
+    @computed_field
+    @property
+    def raw_audio_path(self) -> Path:
+        return self.data_root / 'raw'
+
+    @computed_field
+    @property
+    def metadata_path(self) -> Path:
+        return self.data_root / 'metadata'
+
+    @computed_field
+    @property
+    def segments_path(self) -> Path:
+        return self.data_root / 'segments'
+
+    @computed_field
+    @property
+    def gold_labels_path(self) -> Path:
+        return self.data_root / 'gold_labels'
+
+    @computed_field
+    @property
+    def experiments_path(self) -> Path:
+        return self.metadata_path / self.dataset_id / 'experiments'
+
+    @computed_field
+    @property
+    def predictions_path(self) -> Path:
+        return self.reports_path / 'label_efficiency' / 'preds'
+
+    # ===============================
+    # Versioned folders
+    # ===============================
+
+    @computed_field
+    @property
+    def manifests_root(self) -> Path:
+        """Root directory for dataset-scoped, versioned metadata artifacts.
+
+        Example: data/metadata/blocs_smad/v1/...
+        """
+        return self.metadata_path / self.dataset_id
+
+    def manifest_dir(self, version: str | None = None) -> Path:
+        """Return the manifest directory for a given version."""
+        ver = version or self.manifest_version
+        return self.manifests_root / ver
+
+    @computed_field
+    @property
+    def runs_root(self) -> Path:
+        return self.reports_path / 'runs'
+
+    def run_dir(self, run_id: str | None = None, version: str | None = None) -> Path:
+        """Return the run directory for a given run ID."""
+        rid = run_id or self.run_id
+        vid = version or self.manifest_version
+        return self.runs_root / vid / rid
+
 
     model_config = SettingsConfigDict(
         env_file='.env',

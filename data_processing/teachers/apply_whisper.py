@@ -1,7 +1,6 @@
 # data_processing/teachers/apply_whisper.py
 
-"""
-Apply Whisper-AT teacher model to generate pseudo-labels for audio segments.
+"""Apply Whisper-AT teacher model to generate pseudo-labels for audio segments.
 
 Reads audio segments from disk, runs Whisper-AT to obtain AudioSet logits,
 collapses them to speech, music, and noise scores, and saves pseudo-labels
@@ -20,7 +19,9 @@ from datasets import Dataset
 
 import whisper_at as whisper
 
-from config import get_settings, SAMPLE_RATE, WHISPER_MODEL_SIZE
+from config import get_settings, WHISPER_MODEL_SIZE
+
+from utils.artifacts import V1, V2, SEGMENTS_CSV, TEACHERS_DIR
 
 from utils.dams_types import (
     BatchDict,
@@ -33,7 +34,6 @@ from utils.dams_types import (
     MUSIC_SCORE,
     NOISE_SCORE,
     LABEL_SOURCE_FIELD,
-    BLOCS_SMAD_V1, BLOCS_SMAD_V2_WHISPER,
 )
 
 from utils.audioset_mapping import (
@@ -175,14 +175,14 @@ def _apply_whisper_to_batch(batch: BatchDict, segments_dir: Path) -> BatchDict:
 
 def main() -> None:
     settings = get_settings()
-    metadata_dir: Path = settings.metadata_path
+    v1_dir = settings.manifest_dir(V1)
+    v2_dir = settings.manifest_dir(V2)
     segments_dir: Path = settings.segments_path
 
-    # You can change this to BLOCS_SMAD_V2 or BLOCS_SMAD_V2_GOLD
-    # if you want to start from the AST-labeled or gold-aligned dataset.
-    base_manifest_path = metadata_dir / BLOCS_SMAD_V1
-    logger.info(f'Loading base dataset from {base_manifest_path}...')
-    ds: Dataset = Dataset.load_from_disk(base_manifest_path)
+    # Load segments inventory from v1.
+    segments_csv = v1_dir / SEGMENTS_CSV
+    logger.info(f'Loading segments inventory from {segments_csv}...')
+    ds: Dataset = Dataset.from_csv(str(segments_csv))
 
     map_fn = partial(_apply_whisper_to_batch, segments_dir=segments_dir)
 
@@ -193,13 +193,13 @@ def main() -> None:
         batch_size=1,   # Whisper-AT API is per-clip; keep batch size 1
         desc='Whisper-AT pseudo labeling',
     )
+    # Save out to v2/teachers/whisper.csv and v2/teachers/whisper/
+    teachers_path = v2_dir / TEACHERS_DIR
+    teachers_path.mkdir(parents=True, exist_ok=True)
 
-    out_name = BLOCS_SMAD_V2_WHISPER
-    out_path = metadata_dir / out_name
-
-    logger.info(f'Saving Whisper-AT labeled dataset to {out_path}...')
-    ds_whisper.save_to_disk(out_path)
-    ds_whisper.to_csv(str(metadata_dir / f'{out_name}.csv'), index=False)
+    ds_whisper.to_csv(teachers_path / 'whisper.csv', index=False)
+    ds_whisper.save_to_disk(teachers_path / 'whisper')
+    logger.info(f'✓ Saved Whisper-AT outputs to {teachers_path / "whisper"}[.csv]')
 
     log_pseudo_label_stats(ds_whisper, teacher_name="Whisper-AT pseudo teacher")
 
