@@ -143,38 +143,51 @@ dams/
 ├── config.py                           # Central paths + env access (B2, etc.)
 │
 ├── checkpoints/
-│   └── m2d_clap_vit_base/              # Pretrained M2D-CLAP weights
+│   ├── m2d_clap_vit_base/              # Pretrained M2D-CLAP weights
+│   └── smad_student/                   # SMAD training run checkpoints
 │
 ├── data/
 │   ├── raw/                            # Original long-form radio shows (optional local mirror)
 │   ├── segments/                       # All segment-level WAVs (dev, test, unlabeled) live here
 │   └── metadata/
-│       ├──blocs_smad_segments.csv      # file, splits, label_source, [speech, music, noise], [speech_score, music_score, noise_score]
-│       ├──blocs_smad_segments/         # Versioned Pyarrow-backed HF Datasets for each run (v1, v2, Final, etc.)
-│       ├──blocs_gold_labels.csv        # Reserved for human-annotated labels for dev/test segments 
-│       └── experiments/                # Optional per-run CSV snapshots (ignored by git), for example:
-│           ├── ast_pseudo_DEVTEST_YYYYMMDD.csv
-│           └── whisper_pseudo_DEVTEST_YYYYMMDD.csv
+│       └── blocs_smad/                 # Corpus-scoped versioned metadata
+│           ├── v1/                     # Segmentation + QC
+│           │   ├── segments.csv
+│           │   ├── qc_audio_stats.csv
+│           │   └── gold_annotations.csv
+│           ├── v2/                     # Teacher predictions
+│           │   ├── manifest.csv        # Merged scores
+│           │   └── teachers/           # Per-teacher outputs (ast, clap, m2d, whisper)
+│           ├── v3/                     # Fused pseudo-labels
+│           │   ├── manifest.csv
+│           │   └── fusion_policy.json
+│           └── v4/                     # Final manifest with splits
+│               └── manifest.csv
 │
 ├── data_processing/
 │   ├── __init__.py
-│   ├── build_acoustic_stats.py         # Compute dataset-level acoustic stats for normalization
+│   ├── pipeline/
+│   │   ├── __init__.py
+│   │   ├── segment_audio.py           # Segment long-form recordings into overlapping windows
+│   │   ├── compute_acoustic_stats.py  # Compute acoustic QC stats
+│   │   ├── merge_teacher_scores.py    # Merge per-teacher predictions into unified table
+│   │   ├── fuse_pseudo_labels.py      # Fuse teacher scores into pseudo-labels via voting
+│   │   └── assign_splits.py           # Assign splits with leakage controls, emit final manifest
 │   └── teachers/
 │       ├── __init__.py
-│       ├── apply_ast.py                # Supervised AudioSet Transformer teacher
-│       ├── apply_clap.py               # Zero-shot CLAP audio tagging teacher
-│       ├── apply_m2d.py                # Zero-shot M2D-CLAP audio tagging teacher
-│       └── apply_whisper.py            # Whisper-AT audio tagging teacher
-|
+│       ├── apply_ast.py               # Supervised AudioSet Transformer teacher
+│       ├── apply_clap.py              # Zero-shot CLAP teacher
+│       ├── apply_m2d.py               # Zero-shot M2D-CLAP teacher
+│       └── apply_whisper.py           # Whisper-AT teacher
+│
 ├── logs/
 │   └── dams.log                        # General log file
 │
-├── models/                             # Reserved for fine-tuned model definitions
+├── models/                             # Fine-tuned model definitions
 │   ├── __init__.py   
-│   ├── TBD: SMAD fine-tuned model definitions (dataset, eval, mode, training loop) 
-│   ├── encoders/                       # Encoder architectures 
-│   ├── heads/                          # Classification head definitions
-│   └── losses/                         # Loss functions 
+│   ├── smad_dataset.py                 # Dataset + loaders for SMAD segments
+│   ├── smad_model.py                   # AST backbone + SMAD head
+│   └── smad_train.py                   # Training, eval, checkpoints
 │   
 ├── notebooks/
 │   ├── 01_smad_segments_eda.ipynb      # EDA of BLOCS SMAD segments, acoustic stats, and gold distribution
@@ -185,6 +198,7 @@ dams/
 │
 ├── utils/
 │   ├── __init__.py
+│   ├── artifacts.py                    # Shared artifact naming (v1–v4: segments, manifests, teachers, fusion, splits)
 │   ├── audio_utils.py                  # Audio loading, resampling, segmentation
 │   ├── audioset_mapping.py             # AudioSet class index mapping to [speech, music, noise]
 │   ├── b2_utils.py                     # Helpers for syncing and downloading from Backblaze B2
@@ -282,13 +296,30 @@ Once you have completed the Installation and Quickstart steps and synced data fr
     ```
     These scripts will produce zero-shot labels and scores with `label_source = clap_zero_shot` and `label_source = m2d_zero_shot`, respectively.
 
-4. Open the analysis notebooks to inspect distributions, compare teachers, and (once available) evaluate against gold labels:
+4. Open the analysis notebooks to inspect distributions, compare teachers, and evaluate against gold labels:
 
     - `notebooks/01_smad_segments_eda.ipynb`
     - `notebooks/02_ast_teacher_sanity.ipynb`
     - `notebooks/03_teacher_comparison.ipynb`
+  
+5. Merge teacher scores and fuse pseudo-label:
+   ```bash
+    python -m data_processing.pipeline.merge_teacher_scores
+    python -m data_processing.pipeline.fuse_pseudo_labels
+    python -m data_processing.pipeline.assign_splits
+    ```
+    This produces the final manifest at `data/metadata/blocs_smad/v4/manifest.csv`.
 
-Student fine-tuning under `models/` is under active development; when available, a similar set of commands and configuration files will be documented here for reproducing student domain-adaptation experiments.
+6. Fine-tune the student model:
+   ```bash
+    python -m models.smad_train \
+        --freeze_encoder \
+        --use_ast_collate \
+        --train_mode all \
+        --epochs 8
+    ```
+   Checkpoints are saved to `checkpoints/smad_student/`. Options: `--train_mode gold_only` or `pseudo_only`, `--gold_loss_weight 3.0`, `--unfreeze_encoder`.
+
 
 ## Citation
 
