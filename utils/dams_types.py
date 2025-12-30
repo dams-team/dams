@@ -20,7 +20,7 @@ from typing import TypedDict, Literal
 CLASSES = ['speech', 'music', 'noise']
 
 
-SegmentManifest = list['SegmentRow']
+SegmentManifest = list['SegmentManifestRow']
 
 # ================================
 #  Split and label enums
@@ -73,14 +73,13 @@ NOISE_SCORE = 'noise_score'
 # Optional review flag for human annotation.
 NEEDS_REVIEW = 'needs_review'
 
-# ================================
-#  BLOCS SMAD Version & Artifacts (deprecating old names for genericity)
-# ================================
+# ======================================================================================
+#  BLOCS SMAD Version & Artifacts (deprecated names for compatibility)
+# ======================================================================================
 
 # Versioned dataset folders (HuggingFace `save_to_disk()` outputs).
 BLOCS_GOLD_INTERVALS = 'blocs_gold_intervals'
 BLOCS_OVERLAP_MANIFEST = 'blocs_overlap_manifest'
-BLOCS_SMAD_SEGMENTS = 'blocs_smad_segments'
 BLOCS_SMAD_V1 = 'blocs_smad_v1'
 BLOCS_SMAD_V2_AST = 'blocs_smad_v2_ast'
 BLOCS_SMAD_V2_WHISPER = 'blocs_smad_v2_whisper'
@@ -91,34 +90,53 @@ BLOCS_SMAD_V2_GOLD = 'blocs_smad_v2_gold'   # Gold labeled dataset.
 BLOCS_SMAD_V3 = 'blocs_smad_v3'             # Fused teacher labels or first student pass.
 BLOCS_SMAD_FINAL = 'blocs_smad_manifest_with_splits.csv'
 
-# Base CSV artifact filenames
+# Base filenames for IRR and Gold annotation artifacts (Deprecated).
 CSV_BLOCS_SMAD_SEGMENTS = 'blocs_smad_segments.csv'
-CSV_BLOCS_SMAD_LABELS = 'blocs_smad_labels.csv'
-CSV_BLOCS_OVERLAP_MANIFEST = 'blocs_overlap_manifest.csv'
-CSV_BLOCS_SMAD_GOLD_ANNOTATIONS = 'blocs_smad_gold_annotations_v1.csv'
+CSV_BLOCS_SMAD_GOLD_ANNOTATIONS = 'gold_annotations.csv'
 
-# Gold annotation artifacts
-CSV_BLOCS_SMAD_GOLD_LABELS = 'blocs_smad_labels_gold_v1.csv'  # Trains student model.
 JSONL_BLOCS_SMAD_GOLD_ANNOTATIONS = 'blocs_smad_gold_annotations_v1.jsonl'
 BLOCS_SMAD_GOLD_HF = 'blocs_smad_v2_gold'
 
-# IRR artifacts
 BLOCS_SMAD_IRR_LOG = 'blocs_smad_irr_stats_v1.json'
 BLOCS_SMAD_IRR_TABLE = 'blocs_smad_irr_pairs_v1.csv'
 
 
-# ================================
-#  Row and batch schemas
-# ================================
+# ======================================================================================
+# Required columns per pipeline stage
+# ======================================================================================
 
+REQUIRED_BASE_COLS = ['raw_file', 'segment_path', 'start_time', 'end_time']
+
+REQUIRED_GOLD_COLS = [
+    'segment_path',
+    'raw_file',
+    'is_irr_segment',
+    'speech_gold',
+    'music_gold',
+    'noise_gold',
+]
+
+REQUIRED_PSEUDO_COLS = [
+    'segment_path',
+    'speech_pseudo',
+    'music_pseudo',
+    'noise_pseudo',
+    'speech_score_fused',
+    'music_score_fused',
+    'noise_score_fused',
+    'pseudo_label_source',
+]
+
+FINAL_LABEL_COLS = ['speech_label', 'music_label', 'noise_label']
+FINAL_SCORE_COLS = ['speech_score', 'music_score', 'noise_score']
+
+
+# ======================================================================================
+#  Row and batch schemas
+# ======================================================================================
 
 class SegmentBaseRow(TypedDict):
-    """ A minimal, immutable base row for a single audio segment.
-
-    This is the canonical schema for the segment inventory (e.g., v1/segments.csv).
-    Downstream artifacts (QC, teacher scores, labels, splits) should be keyed by
-    segment_path and joined on this base table.
-    """
+    """Minimal base row for a single audio segment (v1/segments.csv)."""
     segment_path: str       # segment filename, e.g. 001_NO_RAD_0001_s0001.wav.
     raw_file: str           # original long form filename, e.g. 001_NO_RAD_0001.wav.
 
@@ -127,13 +145,9 @@ class SegmentBaseRow(TypedDict):
 
 
 class SegmentManifestRow(TypedDict):
-    """One row in the BLOCS segment manifest.
-
-    This matches what ends up in blocs_smad_* metadata,
-    regardless of whether labels are gold or pseudo.
-    """
-    raw_file: str        # original long form filename, e.g. 001_NO_RAD_0001.wav
+    """Full manifest row with labels and scores (v4/manifest.csv)."""
     segment_path: str    # segment filename, e.g. 001_NO_RAD_0001_s0001.wav
+    raw_file: str        # original long form filename, e.g. 001_NO_RAD_0001.wav
 
     start_time: float    # seconds from start of source file.
     end_time: float      # seconds from start of source file.
@@ -146,7 +160,7 @@ class SegmentManifestRow(TypedDict):
     music_label: int
     noise_label: int
 
-    # Optional scores from teachers, same order as above.
+    # Teacher scores per class (float or None).
     speech_score: float | None
     music_score: float | None
     noise_score: float | None

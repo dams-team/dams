@@ -1,7 +1,6 @@
-# data_processing/apply_ast.py
+# data_processing/teachers/apply_ast.py
 
-"""
-Apply Supervised AudioSet Teacher model to generate pseudo-labels for audio segments.
+"""Apply Supervised AudioSet Teacher model to generate pseudo-labels for audio segments.
 
 Reads audio segments from disk, processes them with a pretrained AudioSet
 Transformer (AST) model to obtain pseudo-labels for speech, music, and noise,
@@ -23,6 +22,8 @@ from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
 
 from config import get_settings, AST_MODEL_NAME, SAMPLE_RATE
 
+from utils.artifacts import V1, V2, SEGMENTS_CSV, TEACHERS_DIR, MANIFEST
+
 from utils.dams_types import (
     BatchDict,
     SEGMENT_PATH,
@@ -34,8 +35,6 @@ from utils.dams_types import (
     MUSIC_SCORE,
     NOISE_SCORE,
     LABEL_SOURCE_FIELD,
-    BLOCS_SMAD_V1,
-    BLOCS_SMAD_V2_AST,
 )
 
 from utils.audioset_mapping import (
@@ -137,12 +136,14 @@ def main() -> None:
 
     with time_block("AST pseudo-labeling process"):
         settings = get_settings()
-        metadata_dir: Path = settings.metadata_path
+        v1_dir = settings.manifest_dir(V1)  # Segmentation directory.
+        v2_dir = settings.manifest_dir(V2)  # Teacher predictions directory.
         segments_dir: Path = settings.segments_path
 
-        base_manifest_path = metadata_dir / BLOCS_SMAD_V1
-        logger.info(f'Loading base dataset from {base_manifest_path}...')
-        ds: Dataset = Dataset.load_from_disk(base_manifest_path)
+        # Load segments inventory from v1.
+        segments_csv = v1_dir / SEGMENTS_CSV
+        logger.info(f'Loading base dataset from {segments_csv}...')
+        ds: Dataset = Dataset.from_csv(segments_csv)
 
         # ds = ds.select(range(500))  # For testing with a smaller subset.
 
@@ -155,13 +156,14 @@ def main() -> None:
             batch_size=16,
             desc='AST pseudo labeling',
         )
+        # Save to v2/teachers/ast.csv and v2/teachers/ast/ HF dataset.
+        teachers_path = v2_dir / TEACHERS_DIR
+        teachers_path.mkdir(exist_ok=True, parents=True)
 
-        out_name = BLOCS_SMAD_V2_AST
-        out_path = metadata_dir / out_name
+        ds_ast.to_csv(teachers_path / 'ast.csv', index=False)
+        ds_ast.save_to_disk(teachers_path / 'ast')
+        logger.info(f'✓ Saved AST outputs to {teachers_path / "ast"}[.csv]')
 
-        logger.info(f'Saving AST labeled dataset to {out_path}...')
-        ds_ast.save_to_disk(out_path)
-        ds_ast.to_csv(str(metadata_dir / f'{out_name}.csv'), index=False)
         # Log summary statistics of pseudo-labels.
         log_pseudo_label_stats(ds_ast, teacher_name="AST pseudo teacher")
 

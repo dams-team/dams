@@ -1,5 +1,15 @@
 # data_processing/teachers/apply_clap.py
 
+"""Apply the LAION CLAP zero-shot audio classification model as a teacher.
+
+Reads audio segments from disk, processes them with the CLAP zero-shot
+audio classification model to obtain pseudo-labels for speech, music, and noise,
+and saves the labeled dataset back to disk.
+
+Usage:
+    python -m data_processing.teachers.apply_clap
+"""
+
 from pathlib import Path
 import torch
 import torchaudio
@@ -9,13 +19,15 @@ from transformers import pipeline
 import torch.nn.functional as F
 
 from config import get_settings, CLAP_MODEL_NAME
+
+from utils.artifacts import V1, V2, SEGMENTS_CSV, TEACHERS_DIR
+
 from utils.dams_types import (
     BatchDict,
     SEGMENT_PATH,
     SPEECH, MUSIC, NOISE,
     SPEECH_SCORE, MUSIC_SCORE, NOISE_SCORE,
     LABEL_SOURCE_FIELD, LABEL_SOURCE_CLAP_ZS,
-    BLOCS_SMAD_V1, BLOCS_SMAD_V2_CLAP
 )
 
 from utils.logger import logger, log_pseudo_label_stats
@@ -114,29 +126,14 @@ def main() -> None:
     with time_block("CLAP teacher runetime"):
 
         settings = get_settings()
-        metadata_dir = settings.metadata_path
+        v1_dir = settings.manifest_dir(V1)
+        v2_dir = settings.manifest_dir(V2)
         segments_dir = settings.segments_path
 
-        base = metadata_dir / BLOCS_SMAD_V1
-        logger.info(f"Loading {base}...")
-        ds = Dataset.load_from_disk(base)
-
-        # If this dataset already has generic score/label columns from another teacher,
-        # drop them so we can write the CLAP scores/labels cleanly for this version.
-        cols_to_drop = [
-            SPEECH_SCORE,
-            MUSIC_SCORE,
-            NOISE_SCORE,
-            SPEECH,
-            MUSIC,
-            NOISE,
-            LABEL_SOURCE_FIELD,
-        ]
-        existing = [c for c in cols_to_drop if c in ds.column_names]
-        if existing:
-            # logger.info(f"Removing existing temp columns before adding CLAP columns: "
-            #            f"{existing}")
-            ds = ds.remove_columns(existing)
+        # Load segments inventory from v1
+        segments_csv = v1_dir / SEGMENTS_CSV
+        logger.info(f"Loading segments from {segments_csv}...")
+        ds = Dataset.from_csv(str(segments_csv))
 
         logger.info("Applying CLAP teacher (sequential loop over segments)...")
 
@@ -174,10 +171,13 @@ def main() -> None:
         ds_clap = ds_clap.add_column(NOISE, noise_labels_all)
         ds_clap = ds_clap.add_column(LABEL_SOURCE_FIELD, label_sources_all)
 
-        out = metadata_dir / BLOCS_SMAD_V2_CLAP
-        logger.info(f"Saving to {out}...")
-        ds_clap.save_to_disk(out)
-        ds_clap.to_csv(str(out) + ".csv", index=False)
+        # Save to v2/teachers/clap.csv and v2/teachers/clap/
+        teachers_path = v2_dir / TEACHERS_DIR
+        teachers_path.mkdir(parents=True, exist_ok=True)
+
+        ds_clap.to_csv(teachers_path / 'clap.csv', index=False)
+        ds_clap.save_to_disk(teachers_path / 'clap')
+        logger.info(f"✓ Saved CLAP outputs to {teachers_path / 'clap'}[.csv]")
 
         log_pseudo_label_stats(ds_clap, teacher_name="CLAP zero-shot teacher")
 

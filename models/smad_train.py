@@ -32,7 +32,6 @@ import argparse
 import json
 import random
 import time
-from contextlib import nullcontext
 
 from tqdm.auto import tqdm
 from dataclasses import dataclass
@@ -46,7 +45,8 @@ from torch import nn
 from torch.optim import AdamW
 
 from config import AST_MODEL_NAME, get_settings
-from utils.dams_types import BLOCS_SMAD_FINAL, CLASSES
+from utils.artifacts import V4, MANIFEST
+from utils.dams_types import CLASSES
 
 
 @dataclass(frozen=True)
@@ -566,7 +566,7 @@ def main() -> None:
     """CLI entry point for training."""
     p = argparse.ArgumentParser()
 
-    p.add_argument('--manifest_name', type=str, default=BLOCS_SMAD_FINAL)
+    p.add_argument('--manifest_name', type=str, default=None)
     p.add_argument('--model_name', type=str, default=AST_MODEL_NAME)
 
     p.add_argument('--batch_size', type=int, default=8)
@@ -608,6 +608,13 @@ def main() -> None:
 
     args = p.parse_args()
 
+    # Resolve default manifest path
+    if args.manifest_name is None:
+        settings = get_settings()
+        manifest_name = str(settings.manifest_dir(V4) / MANIFEST)
+    else:
+        manifest_name = args.manifest_name
+
     if args.freeze_encoder and args.unfreeze_encoder:
         raise ValueError('Choose only one of --freeze_encoder or --unfreeze_encoder.')
 
@@ -618,7 +625,7 @@ def main() -> None:
         freeze_encoder = True
 
     cfg = TrainConfig(
-        manifest_name=args.manifest_name,
+        manifest_name=manifest_name,
         model_name=args.model_name,
         batch_size=int(args.batch_size),
         num_workers=int(args.num_workers),
