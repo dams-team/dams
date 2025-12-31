@@ -18,8 +18,6 @@ import pandas as pd
 
 from config import (
     get_settings,
-    AUDIO_ENCODING,
-    BITS_PER_SAMPLE,
     HOP_LEN,
     SAMPLE_RATE,
     SEGMENT_LEN,
@@ -119,8 +117,6 @@ def make_segments_for_file(wav_path: Path, segments_dir: Path) -> list[SegmentBa
             str(seg_path),
             segment_waveform,
             SAMPLE_RATE,
-            encoding=AUDIO_ENCODING,
-            bits_per_sample=BITS_PER_SAMPLE,
         )
 
         rows.append(
@@ -147,7 +143,7 @@ def main() -> None:
     parser.add_argument(
         '--corpus',
         choices=['blocs', 'ava'],
-        required=True,
+        required=False,
         default='blocs',
         help="Corpus to segment.",
     )
